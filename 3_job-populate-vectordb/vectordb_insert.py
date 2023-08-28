@@ -7,6 +7,9 @@ import utils.model_embedding_utils as model_embedding
 import os
 from pathlib import Path
 
+import requests
+import json
+
 def create_milvus_collection(collection_name, dim):
       if utility.has_collection(collection_name):
           utility.drop_collection(collection_name)
@@ -26,12 +29,23 @@ def create_milvus_collection(collection_name, dim):
       }
       collection.create_index(field_name="embedding", index_params=index_params)
       return collection
+
+def create_solr_collection(collection_name, dim):
+  print(subprocess.run(["sh 3_job-populate-vectordb/start_solr_server.sh"], shell=True))
     
 # Create an embedding for given text/doc and insert it into Milvus Vector DB
 def insert_embedding(collection, id_path, text):
     embedding =  model_embedding.get_embeddings(text)
     data = [[id_path], [embedding]]
     collection.insert(data)
+
+def insert_embedding_solr(id_path, text):
+    embedding =  model_embedding.get_embeddings(text)
+    data = [ { 'relativefilepath' : id_path, 'embedding' : embedding } ]
+    # commit true is highly inefficient
+    url = 'http://localhost:8983/solr/ampCollection/update?commit=true&wt=json'
+    headers = { 'Content-type' : 'application/json' }
+    response = requests.post(url, headers = headers, data=json.dumps(data))
     
 def main():
   # Reset the vector database files
@@ -47,6 +61,7 @@ def main():
     # Create/Recreate the Milvus collection
     collection_name = 'cloudera_ml_docs'
     collection = create_milvus_collection(collection_name, 384)
+    create_solr_collection('ampCollection', 384)
 
     print("Milvus database is up and collection is created")
 
@@ -58,7 +73,7 @@ def main():
             print("Generating embeddings for: %s" % file.name)
             text = f.read()
             insert_embedding(collection, os.path.abspath(file), text)
-
+            insert_embedding_solr(os.path.abspath(file), text)
     collection.flush()
     print('Total number of inserted embeddings is {}.'.format(collection.num_entities))
     print('Finished loading Knowledge Base embeddings into Milvus')
