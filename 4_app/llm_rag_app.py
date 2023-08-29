@@ -1,5 +1,6 @@
 import os
 import gradio
+import subprocess
 
 from milvus import default_server
 from pymilvus import connections, Collection
@@ -13,10 +14,12 @@ import json
 def main():
     # Configure gradio QA app 
     print("Configuring gradio app")
-    demo = gradio.Interface(fn=get_responses, 
+    print(subprocess.run(["sh 3_job-populate-vectordb/start_solr_server.sh"], shell=True))
+    demo = gradio.Interface(fn=get_responses,
                             inputs=gradio.Textbox(label="Question", placeholder=""),
                             outputs=[gradio.Textbox(label="Asking LLM with No Context"),
-                                     gradio.Textbox(label="Asking LLM with Context (RAG)")],
+                                     gradio.Textbox(label="Asking LLM with Context (RAG) using Milvus"),
+                                     gradio.Textbox(label="Asking LLM with Context (RAG) using SOLR")],
                             examples=["What are ML Runtimes?",
                                       "What kinds of users use CML?",
                                       "How do data scientists use CML?"],
@@ -45,18 +48,22 @@ def get_responses(question):
     context_chunk_solr = get_nearest_chunk_from_vectordb_solr(question)
     
     # Phase 2: Create enhanced instruction prompts for use with the LLM
-    prompt_with_context = create_enhanced_prompt(context_chunk_solr, question)
+    prompt_with_context = create_enhanced_prompt(context_chunk, question)
+    prompt_with_context_solr = create_enhanced_prompt(context_chunk_solr, question)
     prompt_without_context = create_enhanced_prompt("none", question)
     
     # Phase 3a: Perform text generation with LLM model using found kb context chunk
     contextResponse = get_llm_response(prompt_with_context)
     rag_response = contextResponse
-    
+
+    solrContextResponse = get_llm_response(prompt_with_context_solr)
+    solr_rag_response = solrContextResponse
+
     # Phase 3b: For comparison, also perform text generation with LLM model without providing context
     plainResponse = get_llm_response(prompt_without_context)
     plain_response = plainResponse
 
-    return plain_response, rag_response
+    return plain_response, rag_response, solr_rag_response
 
 # Get embeddings for a user question and query Milvus vector DB for nearest knowledge base chunk
 def get_nearest_chunk_from_vectordb(vector_db_collection, question):

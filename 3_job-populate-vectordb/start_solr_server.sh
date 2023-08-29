@@ -34,22 +34,17 @@ case $i in
 esac
 done
 
-VERSION=9.3.0
-SOLRTARGZ=solr-${VERSION}.tgz
-solr-${VERSION}/bin/solr stop -all
-rm -rf solr-${VERSION}
-if [ ! -f ${SOLRTARGZ} ]; then
-  wget --no-check-certificate "https://www.apache.org/dyn/closer.lua/solr/solr/${VERSION}/solr-${VERSION}.tgz?action=download" -O ${SOLRTARGZ}
-fi
-tar xfz ${SOLRTARGZ}
+export JAVA_HOME=/home/cdsw/jdk-11
+export PATH=$PATH:$JAVA_HOME/bin
 
+VERSION=9.3.0
 if [ ! -z "${zkhosts}" ]; then
   ZK_HOST=${zkhosts}/solr9
   solr-${VERSION}/bin/solr zk rm -r /solr9 -z "${zkhosts}:2181"
   solr-${VERSION}/bin/solr zk mkroot /solr9 -z "${zkhosts}:2181"
 fi
 
-ZK_HOST=${ZK_HOST} SOLR_JETTY_HOST="0.0.0.0" SOLR_HOST=$(hostname -f) solr-${VERSION}/bin/solr -c -Dsolr.disableConfigSetsCreateAuthChecks=true -Dsolr.jetty.request.header.size=65535
+ZK_HOST=${ZK_HOST} SOLR_JETTY_HOST="0.0.0.0" SOLR_HOST=$(hostname -f) solr-${VERSION}/bin/solr -c -Dsolr.disableConfigSetsCreateAuthChecks=true -Dsolr.jetty.request.header.size=65535 -m 8g
 sleep 5
 
 curl "http://localhost:8983/solr/admin/configs?action=CREATE&name=ampConfigset&baseConfigSet=_default&configSetProp.immutable=false&wt=xml&omitHeader=true"
