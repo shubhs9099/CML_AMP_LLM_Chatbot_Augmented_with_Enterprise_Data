@@ -1,0 +1,29 @@
+If you are already familiar with SolrCloud concepts and basic functionality, you can skip to the section covering <<solrcloud-configuration-and-parameters.adoc#,SolrCloud Configuration and Parameters>>.
+
+== Key SolrCloud Concepts
+
+A SolrCloud cluster consists of some "logical" concepts layered on top of some "physical" concepts.
+
+=== Logical Concepts
+
+* A Cluster can host multiple Collections of Solr Documents.
+* A collection can be partitioned into multiple Shards, which contain a subset of the Documents in the Collection.
+* The number of Shards that a Collection has determines:
+** The theoretical limit to the number of Documents that Collection can reasonably contain.
+** The amount of parallelization that is possible for an individual search request.
+
+=== Physical Concepts
+
+* A Cluster is made up of one or more Solr Nodes, which are running instances of the Solr server process.
+* Each Node can host multiple Cores.
+* Each Core in a Cluster is a physical Replica for a logical Shard.
+* Every Replica uses the same configuration specified for the Collection that it is a part of.
+* The number of Replicas that each Shard has determines:
+** The level of redundancy built into the Collection and how fault tolerant the Cluster can be in the event that some Nodes become unavailable.
+** The theoretical limit in the number concurrent search requests that can be processed under heavy load.
+
+WARNING: Make sure the DNS resolution in your cluster is stable, i.e.,
+for each live host belonging to a Cluster the host name always corresponds to the
+same specific IP and physical node. For example, in clusters deployed on AWS this would
+require setting `preserve_hostname: true` in `/etc/cloud/cloud.cfg`. Changing DNS resolution
+of live nodes may lead to unexpected errors. See SOLR-13159 for more details.
