@@ -1,5 +1,6 @@
 import os
 import gradio
+import subprocess
 
 from milvus import default_server
 from pymilvus import connections, Collection
@@ -7,14 +8,18 @@ import utils.model_llm_utils as model_llm
 import utils.vector_db_utils as vector_db
 import utils.model_embedding_utils as model_embedding
 
+import requests
+import json
 
 def main():
     # Configure gradio QA app 
     print("Configuring gradio app")
-    demo = gradio.Interface(fn=get_responses, 
+    print(subprocess.run(["sh 3_job-populate-vectordb/start_solr_server.sh"], shell=True))
+    demo = gradio.Interface(fn=get_responses,
                             inputs=gradio.Textbox(label="Question", placeholder=""),
                             outputs=[gradio.Textbox(label="Asking LLM with No Context"),
-                                     gradio.Textbox(label="Asking LLM with Context (RAG)")],
+                                     gradio.Textbox(label="Asking LLM with Context (RAG) using Milvus"),
+                                     gradio.Textbox(label="Asking LLM with Context (RAG) using SOLR")],
                             examples=["What are ML Runtimes?",
                                       "What kinds of users use CML?",
                                       "How do data scientists use CML?"],
@@ -39,20 +44,26 @@ def get_responses(question):
     # Phase 1: Get nearest knowledge base chunk for a user question from a vector db
     context_chunk = get_nearest_chunk_from_vectordb(vector_db_collection, question)
     vector_db_collection.release()
+
+    context_chunk_solr = get_nearest_chunk_from_vectordb_solr(question)
     
     # Phase 2: Create enhanced instruction prompts for use with the LLM
     prompt_with_context = create_enhanced_prompt(context_chunk, question)
+    prompt_with_context_solr = create_enhanced_prompt(context_chunk_solr, question)
     prompt_without_context = create_enhanced_prompt("none", question)
     
     # Phase 3a: Perform text generation with LLM model using found kb context chunk
     contextResponse = get_llm_response(prompt_with_context)
     rag_response = contextResponse
-    
+
+    solrContextResponse = get_llm_response(prompt_with_context_solr)
+    solr_rag_response = solrContextResponse
+
     # Phase 3b: For comparison, also perform text generation with LLM model without providing context
     plainResponse = get_llm_response(prompt_without_context)
     plain_response = plainResponse
 
-    return plain_response, rag_response
+    return plain_response, rag_response, solr_rag_response
 
 # Get embeddings for a user question and query Milvus vector DB for nearest knowledge base chunk
 def get_nearest_chunk_from_vectordb(vector_db_collection, question):
@@ -78,6 +89,18 @@ def get_nearest_chunk_from_vectordb(vector_db_collection, question):
     
     # Return text of the nearest knowledgebase chunk
     return load_context_chunk_from_data(nearest_vectors[0].ids[0])
+
+def get_nearest_chunk_from_vectordb_solr(question):
+    # Generate embedding for user question
+    question_embedding =  model_embedding.get_embeddings(question)
+
+    v = json.dumps(question_embedding).replace(' ','')
+    url = 'http://localhost:8983/solr/ampCollection/select'
+    params = { 'wt' : 'json' , 'q' : '{!knn f=embedding topK=10}'+v, 'fl' : 'relativefilepath', 'rows' : 1 }
+    response = requests.get(url, params=params)
+    relativepath = response.json()["response"]["docs"][0]["relativefilepath"]
+    print (relativepath)
+    return load_context_chunk_from_data(relativepath)
   
 # Return the Knowledge Base doc based on Knowledge Base ID (relative file path)
 def load_context_chunk_from_data(id_path):

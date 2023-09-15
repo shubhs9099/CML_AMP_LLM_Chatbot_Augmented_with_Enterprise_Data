@@ -13,3 +13,5 @@ __pycache__
 !.project-metadata.yaml
 !.gitignore
 !.experiments
+solr-9.3.0.tgz
+solr-9.3.0

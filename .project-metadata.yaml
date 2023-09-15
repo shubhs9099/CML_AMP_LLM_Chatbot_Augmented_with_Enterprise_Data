@@ -55,6 +55,22 @@ tasks:
   - type: run_job
     entity_label: download_data_and_models
     short_summary: Run job to download pre-trained models.
+
+  - type: create_job
+    name: Download JDK11 and solr
+    entity_label: download_jdk11_and_solr
+    script: 2_1_job-download-jdk11-and-solr/download_jdk11_and_solr.py
+    arguments: None
+    short_summary: Create job to download jdk11 and solr.
+    long_summary: Create job to download jdk11 and solr.
+    cpu: 1
+    memory: 4
+    environment:
+      TASK_TYPE: CREATE/RUN_JOB
+
+  - type: run_job
+    entity_label: download_jdk11_and_solr
+    short_summary: Run job to download jdk11 and solr
     
   - type: create_job
     name: Populate Vector DB with documents embeddings
